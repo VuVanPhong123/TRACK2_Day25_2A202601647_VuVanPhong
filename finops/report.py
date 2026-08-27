@@ -68,9 +68,13 @@ def build_report(baseline_usd: float, optimized_usd: float, levers: dict,
                 "",
                 "## Extension 4 — Reasoning budget",
                 "",
-                f"- Reasoning traffic share: **{reasoning.get('traffic_share', 0):.1%}**",
-                f"- Share of optimized inference cost: **{reasoning.get('cost_share', 0):.1%}**",
-                f"- Share of inference energy: **{reasoning.get('energy_share', 0):.1%}**",
+                "The measured reasoning/non-reasoning split is shown explicitly so the budget decision is auditable rather than based only on percentages.",
+                "",
+                "| Segment | Traffic share | Optimized cost/day | Energy/day | Cost share | Energy share |",
+                "|---|---:|---:|---:|---:|---:|",
+                f"| Reasoning | {reasoning.get('traffic_share', 0):.1%} | ${reasoning.get('cost_daily', 0):.3f} | {reasoning.get('energy_wh_daily', 0):,.0f} Wh | {reasoning.get('cost_share', 0):.1%} | {reasoning.get('energy_share', 0):.1%} |",
+                f"| Non-reasoning | {reasoning.get('non_reasoning_traffic_share', 0):.1%} | ${reasoning.get('non_reasoning_cost_daily', 0):.3f} | {reasoning.get('non_reasoning_energy_wh_daily', 0):,.0f} Wh | {reasoning.get('non_reasoning_cost_share', 0):.1%} | {reasoning.get('non_reasoning_energy_share', 0):.1%} |",
+                "",
                 f"- Proposed budget: cap reasoning at **{reasoning.get('target_share', 0):.0%}** of traffic and reserve it for the highest-complexity/output requests.",
                 f"- Estimated reroutes: **{reasoning.get('demoted_requests', 0)} requests/day**",
                 f"- Estimated savings from the cap: **${reasoning.get('cap_cost_savings_daily', 0):.3f}/day** and **{reasoning.get('cap_energy_savings_wh_daily', 0):,.0f} Wh/day**.",
@@ -132,7 +136,7 @@ def build_writeup(baseline_usd: float, optimized_usd: float, levers: dict,
         f"Detected GPU-Util lie candidates: **{lie_ids}**. High GPU-Util only proves that the GPU clock is active; low MFU shows that little peak arithmetic is being converted into useful work. Likely causes include memory stalls, synchronization, kernel-launch overhead, or workload shape, so MFU/MBU and throughput are required before a right-size decision.",
         "",
         "## 4. Extensions implemented",
-        f"**Reasoning budget:** reasoning is {reasoning.get('traffic_share', 0):.1%} of traffic but {reasoning.get('energy_share', 0):.1%} of modeled inference energy. Capping it at {reasoning.get('target_share', 0):.0%} and reserving it for the highest-complexity requests is estimated to save ${reasoning.get('cap_cost_savings_daily', 0):.3f}/day and {reasoning.get('cap_energy_savings_wh_daily', 0):,.0f} Wh/day.",
+        f"**Reasoning budget:** reasoning is {reasoning.get('traffic_share', 0):.1%} of traffic, costs ${reasoning.get('cost_daily', 0):.3f}/day, and uses {reasoning.get('energy_wh_daily', 0):,.0f} Wh/day versus ${reasoning.get('non_reasoning_cost_daily', 0):.3f}/day and {reasoning.get('non_reasoning_energy_wh_daily', 0):,.0f} Wh/day for non-reasoning traffic. Capping reasoning at {reasoning.get('target_share', 0):.0%} is estimated to save ${reasoning.get('cap_cost_savings_daily', 0):.3f}/day and {reasoning.get('cap_energy_savings_wh_daily', 0):,.0f} Wh/day.",
         f"**Carbon-aware scheduling:** movable workloads can reduce modeled emissions by {carbon.get('saved_kgco2e', 0):,.1f} kgCO2e ({carbon.get('reduction_pct', 0):.1f}%) by moving from {carbon.get('current_region', 'n/a')} to {carbon.get('cleanest_region', 'n/a')}. The cheapest and cleanest regions differ, so the decision must also respect latency/SLA.",
         "",
         "## 5. First three actions as FinOps lead",
@@ -144,22 +148,51 @@ def build_writeup(baseline_usd: float, optimized_usd: float, levers: dict,
     ])
 
 
-def savings_waterfall(levers: dict, path: str) -> str:
-    """Write a simple savings bar chart PNG. Returns the path. No-op if matplotlib absent."""
+def savings_waterfall(levers: dict, path: str, baseline_usd: float | None = None) -> str:
+    """Write a true baseline-to-optimized waterfall chart; fall back to lever bars."""
     try:
         import matplotlib
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
     except Exception:
         return ""
+
     names = list(levers.keys())
-    vals = [levers[n] for n in names]
-    fig, ax = plt.subplots(figsize=(8, 4.5))
-    ax.bar(names, vals, color="#2e548a")
-    ax.set_ylabel("Savings (USD / month)")
-    ax.set_title("GPU cost savings by FinOps lever")
-    plt.xticks(rotation=20, ha="right")
+    vals = [float(levers[n]) for n in names]
+    fig, ax = plt.subplots(figsize=(9, 5))
+
+    if baseline_usd is None:
+        ax.bar(names, vals)
+        ax.set_ylabel("Savings (USD / month)")
+        ax.set_title("GPU cost savings by FinOps lever")
+        plt.xticks(rotation=20, ha="right")
+    else:
+        baseline = float(baseline_usd)
+        running = baseline
+        labels = ["Baseline"] + names + ["Optimized"]
+        x = list(range(len(labels)))
+
+        ax.bar(x[0], baseline)
+        ax.text(x[0], baseline, f"${baseline:,.0f}", ha="center", va="bottom", fontsize=8)
+
+        previous_top = baseline
+        for idx, amount in enumerate(vals, start=1):
+            new_total = running - amount
+            ax.bar(x[idx], amount, bottom=new_total)
+            ax.text(x[idx], new_total + amount / 2, f"-${amount:,.0f}", ha="center", va="center", fontsize=8)
+            ax.plot([x[idx - 1] + 0.4, x[idx] - 0.4], [previous_top, previous_top], linewidth=0.8)
+            running = new_total
+            previous_top = running
+
+        optimized = max(0.0, running)
+        ax.bar(x[-1], optimized)
+        ax.text(x[-1], optimized, f"${optimized:,.0f}", ha="center", va="bottom", fontsize=8)
+        ax.set_xticks(x, labels, rotation=20, ha="right")
+        ax.set_ylabel("Monthly spend (USD)")
+        ax.set_title("GPU FinOps savings waterfall: baseline to optimized spend")
+        ax.axhline(0, linewidth=0.8)
+
     plt.tight_layout()
-    fig.savefig(path, dpi=110)
+    fig.savefig(path, dpi=130)
     plt.close(fig)
     return path
