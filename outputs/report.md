@@ -9,6 +9,12 @@
 
 The largest measured lever is **Purchasing (spot/reserved)**. The recommendation is to execute high-ROI, low-risk levers first, then use measurement gates before applying commitments or workload moves broadly.
 
+## Inference unit economics
+
+- Baseline: **$6.488/1M-token**
+- Optimized: **$1.126/1M-token**
+- Reduction: **82.6%** from cascade + caching + batch.
+
 ## Savings by lever
 
 | Lever | Savings (USD) | Share of baseline |
