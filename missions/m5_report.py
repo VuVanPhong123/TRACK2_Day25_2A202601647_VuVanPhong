@@ -1,6 +1,6 @@
 """M5 — Optimization Report: combine M1-M4 into baseline-vs-optimized (deck §1/§11).
 
-Run: python missions/m5_report.py   ->  outputs/report.md + outputs/savings.png
+Run: python missions/m5_report.py   -> outputs/report.md + outputs/savings.png + outputs/writeup.md
 """
 from __future__ import annotations
 import os as _os, sys as _sys
@@ -43,29 +43,45 @@ def run(verbose: bool = True) -> dict:
     optimized = baseline - sum(levers.values())
     total_pct = sum(levers.values()) / baseline * 100 if baseline else 0.0
 
-    # --- sustainability snapshot ---
+    # --- sustainability snapshot + extension outputs ---
     median_tokens = 800
+    current_region = "us-east-1"
     wh = sustainability.wh_per_query(median_tokens)
+    cleanest_region = min(sustainability.REGION_CARBON, key=sustainability.REGION_CARBON.get)
+    cheapest_region = min(sustainability.REGION_PRICE_KWH, key=sustainability.REGION_PRICE_KWH.get)
     sust = {
         "wh_per_query": wh,
-        "carbon_g": sustainability.carbon_g(wh, "us-east-1"),
-        "best_region": min(sustainability.REGION_CARBON, key=sustainability.REGION_CARBON.get),
+        "carbon_g": sustainability.carbon_g(wh, current_region),
+        "energy_cost_usd": sustainability.energy_cost_usd(wh, current_region),
+        "current_region": current_region,
+        "cleanest_region": cleanest_region,
+        "cheapest_region": cheapest_region,
+        "reasoning": r2.get("reasoning", {}),
+        "carbon_aware": r3.get("carbon_aware", {}),
     }
 
     md = report.build_report(baseline, optimized, levers, sustainability=sust)
     out_md = os.path.join(ROOT, "outputs", "report.md")
     os.makedirs(os.path.dirname(out_md), exist_ok=True)
-    with open(out_md, "w") as f:
+    with open(out_md, "w", encoding="utf-8") as f:
         f.write(md)
+
+    writeup = report.build_writeup(baseline, optimized, levers, r2, r1, sust)
+    out_writeup = os.path.join(ROOT, "outputs", "writeup.md")
+    with open(out_writeup, "w", encoding="utf-8") as f:
+        f.write(writeup)
+
     png = report.savings_waterfall(levers, os.path.join(ROOT, "outputs", "savings.png"))
 
     if verbose:
         print("== M5 Optimization Report ==")
         print(md)
-        print(f"\nWritten: outputs/report.md" + (f" + outputs/savings.png" if png else " (matplotlib absent: PNG skipped)"))
+        suffix = " + outputs/savings.png" if png else " (matplotlib absent: PNG skipped)"
+        print(f"\nWritten: outputs/report.md + outputs/writeup.md{suffix}")
 
     return {"baseline_monthly": round(baseline), "optimized_monthly": round(optimized),
-            "levers": levers, "total_savings_pct": round(total_pct, 1)}
+            "levers": levers, "total_savings_pct": round(total_pct, 1),
+            "reasoning": r2.get("reasoning", {}), "carbon_aware": r3.get("carbon_aware", {})}
 
 
 if __name__ == "__main__":
