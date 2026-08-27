@@ -49,6 +49,26 @@ def run(verbose: bool = True) -> dict:
     wh = sustainability.wh_per_query(median_tokens)
     cleanest_region = min(sustainability.REGION_CARBON, key=sustainability.REGION_CARBON.get)
     cheapest_region = min(sustainability.REGION_PRICE_KWH, key=sustainability.REGION_PRICE_KWH.get)
+
+    # Enrich Extension 4 with absolute values required by the rubric. M2 already
+    # computes shares and total energy; deriving the split here keeps M2's public
+    # result backward-compatible while making the report fully auditable.
+    reasoning = dict(r2.get("reasoning", {}))
+    traffic_share = reasoning.get("traffic_share", 0.0)
+    cost_share = reasoning.get("cost_share", 0.0)
+    energy_share = reasoning.get("energy_share", 0.0)
+    total_cost_daily = float(r2.get("optimized_daily", 0.0))
+    total_energy_wh_daily = float(reasoning.get("total_energy_wh_daily", 0.0))
+    reasoning.update({
+        "non_reasoning_traffic_share": max(0.0, 1.0 - traffic_share),
+        "cost_daily": round(total_cost_daily * cost_share, 4),
+        "non_reasoning_cost_daily": round(total_cost_daily * max(0.0, 1.0 - cost_share), 4),
+        "non_reasoning_cost_share": max(0.0, 1.0 - cost_share),
+        "energy_wh_daily": round(total_energy_wh_daily * energy_share, 2),
+        "non_reasoning_energy_wh_daily": round(total_energy_wh_daily * max(0.0, 1.0 - energy_share), 2),
+        "non_reasoning_energy_share": max(0.0, 1.0 - energy_share),
+    })
+
     sust = {
         "wh_per_query": wh,
         "carbon_g": sustainability.carbon_g(wh, current_region),
@@ -56,7 +76,7 @@ def run(verbose: bool = True) -> dict:
         "current_region": current_region,
         "cleanest_region": cleanest_region,
         "cheapest_region": cheapest_region,
-        "reasoning": r2.get("reasoning", {}),
+        "reasoning": reasoning,
         "carbon_aware": r3.get("carbon_aware", {}),
     }
 
@@ -71,7 +91,11 @@ def run(verbose: bool = True) -> dict:
     with open(out_writeup, "w", encoding="utf-8") as f:
         f.write(writeup)
 
-    png = report.savings_waterfall(levers, os.path.join(ROOT, "outputs", "savings.png"))
+    png = report.savings_waterfall(
+        levers,
+        os.path.join(ROOT, "outputs", "savings.png"),
+        baseline_usd=baseline,
+    )
 
     if verbose:
         print("== M5 Optimization Report ==")
@@ -81,7 +105,7 @@ def run(verbose: bool = True) -> dict:
 
     return {"baseline_monthly": round(baseline), "optimized_monthly": round(optimized),
             "levers": levers, "total_savings_pct": round(total_pct, 1),
-            "reasoning": r2.get("reasoning", {}), "carbon_aware": r3.get("carbon_aware", {})}
+            "reasoning": reasoning, "carbon_aware": r3.get("carbon_aware", {})}
 
 
 if __name__ == "__main__":
