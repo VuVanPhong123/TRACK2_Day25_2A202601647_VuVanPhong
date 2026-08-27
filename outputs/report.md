@@ -40,9 +40,13 @@ Carbon and electricity price are separate objectives. The cleanest region is not
 
 ## Extension 4 — Reasoning budget
 
-- Reasoning traffic share: **8.4%**
-- Share of optimized inference cost: **16.5%**
-- Share of inference energy: **94.0%**
+The measured reasoning/non-reasoning split is shown explicitly so the budget decision is auditable rather than based only on percentages.
+
+| Segment | Traffic share | Optimized cost/day | Energy/day | Cost share | Energy share |
+|---|---:|---:|---:|---:|---:|
+| Reasoning | 8.4% | $1.396 | 29,788 Wh | 16.5% | 94.0% |
+| Non-reasoning | 91.6% | $7.084 | 1,888 Wh | 83.5% | 6.0% |
+
 - Proposed budget: cap reasoning at **5%** of traffic and reserve it for the highest-complexity/output requests.
 - Estimated reroutes: **81 requests/day**
 - Estimated savings from the cap: **$0.226/day** and **7,880 Wh/day**.

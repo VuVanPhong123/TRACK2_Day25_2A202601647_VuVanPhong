@@ -10,7 +10,7 @@ The largest measured lever is **Purchasing (spot/reserved)** at approximately **
 Detected GPU-Util lie candidates: **gpu-h100-4, gpu-a10g-1**. High GPU-Util only proves that the GPU clock is active; low MFU shows that little peak arithmetic is being converted into useful work. Likely causes include memory stalls, synchronization, kernel-launch overhead, or workload shape, so MFU/MBU and throughput are required before a right-size decision.
 
 ## 4. Extensions implemented
-**Reasoning budget:** reasoning is 8.4% of traffic but 94.0% of modeled inference energy. Capping it at 5% and reserving it for the highest-complexity requests is estimated to save $0.226/day and 7,880 Wh/day.
+**Reasoning budget:** reasoning is 8.4% of traffic, costs $1.396/day, and uses 29,788 Wh/day versus $7.084/day and 1,888 Wh/day for non-reasoning traffic. Capping reasoning at 5% is estimated to save $0.226/day and 7,880 Wh/day.
 **Carbon-aware scheduling:** movable workloads can reduce modeled emissions by 626.1 kgCO2e (92.1%) by moving from us-east-1 to europe-north1. The cheapest and cleanest regions differ, so the decision must also respect latency/SLA.
 
 ## 5. First three actions as FinOps lead
