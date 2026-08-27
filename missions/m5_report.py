@@ -81,6 +81,14 @@ def run(verbose: bool = True) -> dict:
     }
 
     md = report.build_report(baseline, optimized, levers, sustainability=sust)
+    unit_economics = (
+        "## Inference unit economics\n\n"
+        f"- Baseline: **${r2.get('baseline_per_m', 0):.3f}/1M-token**\n"
+        f"- Optimized: **${r2.get('optimized_per_m', 0):.3f}/1M-token**\n"
+        f"- Reduction: **{r2.get('savings_pct', 0):.1f}%** from cascade + caching + batch.\n\n"
+    )
+    md = md.replace("## Savings by lever", unit_economics + "## Savings by lever", 1)
+
     out_md = os.path.join(ROOT, "outputs", "report.md")
     os.makedirs(os.path.dirname(out_md), exist_ok=True)
     with open(out_md, "w", encoding="utf-8") as f:
